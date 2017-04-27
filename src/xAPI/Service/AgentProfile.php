@@ -99,7 +99,11 @@ class AgentProfile extends Service
         $cursor->where('agent', $agent);
 
         if ($params->has('since')) {
-            $since = Util\Date::dateStringToMongoDate($params->get('since'));
+            $date = Util\Date::dateRFC3339($params->get('since'));
+            if(!$date){
+                throw new Exception('"since" parameter is not a valid ISO 8601 timestamp.(Good example: 2015-11-18T12:17:00+00:00), ', Resource::STATUS_NOT_FOUND);
+            }
+            $since = Util\Date::dateTimeToMongoDate($date);
             $cursor->whereGreaterOrEqual('mongoTimestamp', $since);
         }
 
@@ -193,7 +197,7 @@ class AgentProfile extends Service
 
         $agentProfileDocument->setContent($rawBody);
         // Dates
-        $currentDate = new \DateTime();
+        $currentDate = Util\Date::dateTimeExact();
         $agentProfileDocument->setMongoTimestamp(Util\Date::dateTimeToMongoDate($currentDate));
         $agentProfileDocument->setAgent($agent);
         $agentProfileDocument->setProfileId($params->get('profileId'));
@@ -284,7 +288,7 @@ class AgentProfile extends Service
 
         $agentProfileDocument->setContent($rawBody);
         // Dates
-        $currentDate = new \DateTime();
+        $currentDate = Util\Date::dateTimeExact();
         $agentProfileDocument->setMongoTimestamp(Util\Date::dateTimeToMongoDate($currentDate));
 
         $agentProfileDocument->setAgent($agent);
@@ -360,7 +364,7 @@ class AgentProfile extends Service
         // Add to log
         $this->getSlim()->requestLog->addRelation('agentProfiles', $result)->save();
 
-        $result->delete();  
+        $result->delete();
 
         return $this;
     }

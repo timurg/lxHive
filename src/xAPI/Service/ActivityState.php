@@ -123,7 +123,11 @@ class ActivityState extends Service
         }
 
         if ($params->has('since')) {
-            $since = Util\Date::dateStringToMongoDate($params->get('since'));
+            $date = Util\Date::dateRFC3339($params->get('since'));
+            if(!$date){
+                throw new Exception('"since" parameter is not a valid ISO 8601 timestamp.(Good example: 2015-11-18T12:17:00+00:00), ', Resource::STATUS_NOT_FOUND);
+            }
+            $since = Util\Date::dateTimeToMongoDate($date);
             $cursor->whereGreaterOrEqual('mongoTimestamp', $since);
         }
 
@@ -204,7 +208,7 @@ class ActivityState extends Service
 
         $activityStateDocument->setContent($rawBody);
         // Dates
-        $currentDate = new \DateTime();
+        $currentDate = Util\Date::dateTimeExact();
         $activityStateDocument->setMongoTimestamp(Util\Date::dateTimeToMongoDate($currentDate));
 
         $activityStateDocument->setActivityId($params->get('activityId'));
@@ -282,7 +286,7 @@ class ActivityState extends Service
 
         $activityStateDocument->setContent($rawBody);
         // Dates
-        $currentDate = new \DateTime();
+        $currentDate = Util\Date::dateTimeExact();
         $activityStateDocument->setMongoTimestamp(Util\Date::dateTimeToMongoDate($currentDate));
         $activityStateDocument->setActivityId($params->get('activityId'));
 

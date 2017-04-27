@@ -66,6 +66,11 @@ $app->configureMode('production', function () use ($app, $appRoot) {
     // Add config
     Config\Yaml::getInstance()->addFile($appRoot.'/src/xAPI/Config/Config.production.yml');
 
+    // Debug mode
+    if ($app->debug) {
+        $app->log->setLevel(\Slim\Log::DEBUG);
+    }
+
     // Set up logging
     $logger = new Logger\MonologWriter([
         'handlers' => [
@@ -80,6 +85,11 @@ $app->configureMode('production', function () use ($app, $appRoot) {
 $app->configureMode('development', function () use ($app, $appRoot) {
     // Add config
     Config\Yaml::getInstance()->addFile($appRoot.'/src/xAPI/Config/Config.development.yml');
+
+    // Debug mode
+    if ($app->debug) {
+        $app->log->setLevel(\Slim\Log::DEBUG);
+    }
 
     // Set up logging
     $logger = new Logger\MonologWriter([
@@ -106,10 +116,20 @@ $app->error(function (\Exception $e) {
 
 // Database layer setup
 $app->hook('slim.before', function () use ($app) {
+
+    // #91, Slim 2 cannot deal with full uri's in $_SERVER['REQUEST_URI']
+    // TODO: remove in Slim 3 ?
+    $info = $app->environment()['PATH_INFO'];
+    $url = $app->request->getUrl();
+    if (stripos($info, $url) !== false) {
+        $url .= (substr($url, -1) == '/' ? '' : '/');
+        $app->environment()['PATH_INFO'] = str_replace($url, '', $info);
+    }
+
     $app->container->singleton('mongo', function () use ($app) {
         $client = new Client($app->config('database')['host_uri']);
         $client->map([
-            $app->config('database')['db_name']  => '\API\Collection',
+            $app->config('database')['db_name'] => '\API\Collection',
         ]);
         $client->useDatabase($app->config('database')['db_name']);
 
@@ -138,7 +158,7 @@ $app->hook('slim.before.router', function () use ($app) {
 });
 
 // Parse version
-$app->hook('slim.before.dispatch', function () use ($app) {
+$app->hook('slim.before.dispatch', function () use ($app, $appRoot) {
     // Version
     $app->container->singleton('version', function () use ($app) {
         if ($app->request->isOptions() || $app->request->getPathInfo() === '/about' || strpos(strtolower($app->request->getPathInfo()), '/oauth') === 0) {
@@ -152,14 +172,19 @@ $app->hook('slim.before.dispatch', function () use ($app) {
         } else {
             try {
                 $version = Versioning::fromString($versionString);
-                return $version;
             } catch (\InvalidArgumentException $e) {
                 throw new \Exception('X-Experience-API-Version header invalid.', Resource::STATUS_BAD_REQUEST);
             }
+
+            if (!in_array($versionString, $app->config('xAPI')['supported_versions'])) {
+                throw new \Exception('X-Experience-API-Version is not supported.', Resource::STATUS_BAD_REQUEST);
+            }
+
+            return $version;
         }
     });
 
-    // Request logging 
+    // Request logging
     $app->container->singleton('requestLog', function () use ($app) {
         $logService = new LogService($app);
         $logDocument = $logService->logRequest($app->request);
@@ -203,12 +228,13 @@ $app->hook('slim.before.dispatch', function () use ($app) {
         $app->container->singleton('view', function () use ($twigContainer) {
             return $twigContainer;
         });
+        $app->view->parserOptions['cache'] = $appRoot.'/storage/.Cache';
     }
 
-    // Content type check 
+    // Content type check
     if (($app->request->isPost() || $app->request->isPut()) && $app->request->getPathInfo() === '/statements' && !in_array($app->request->getMediaType(), ['application/json', 'multipart/mixed', 'application/x-www-form-urlencoded'])) {
         // Bad Content-Type
-        throw new \Exception('Bad Content-Type.', Resource::STATUS_BAD_REQUEST);;
+        throw new \Exception('Bad Content-Type.', Resource::STATUS_BAD_REQUEST);
     }
 });
 

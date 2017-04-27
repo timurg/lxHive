@@ -22,39 +22,26 @@
  * file that was distributed with this source code.
  */
 
-namespace API\Document\Auth;
+namespace API\Util;
 
-use Sokil\Mongo\Document;
+use \Sokil\Mongo\Client;
+use API\Resource;
 
-class OAuthClient extends Document implements \JsonSerializable
+class MongoClient
 {
-    protected $_data = [
-        'clientId'    => null,
-        'secret'      => null,
-        'description' => null,
-        'name'        => null,
-        'redirectUri' => null,
-    ];
+    /**
+     * @var \Sokil\Mongo\Client $client mongo client instance
+     */
+    public $client;
 
-    public function relations()
+    /**
+     * @var \Sokil\Mongo\Database $database mongo database instance
+     */
+    public $db;
+
+    public function __construct($config)
     {
-        return [
-            'oAuthTokens' => [self::RELATION_HAS_MANY, 'oAuthTokens', 'clientId'],
-        ];
-    }
-
-    public function jsonSerialize()
-    {
-        return $this->_data;
-    }
-
-    public function renderSummary()
-    {
-        $return = [
-            'name' => $this->_data['name'],
-            'description' =>  $this->_data['description']
-        ];
-
-        return $return;
+        $this->client = new Client($config['database']['host_uri']);
+        $this->db = $this->client->getDatabase($config['database']['db_name']);
     }
 }
